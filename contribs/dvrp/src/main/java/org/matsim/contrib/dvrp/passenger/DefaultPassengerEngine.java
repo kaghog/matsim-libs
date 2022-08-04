@@ -19,18 +19,18 @@
 
 package org.matsim.contrib.dvrp.passenger;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
 
 import org.matsim.api.core.v01.Id;
+import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.population.Leg;
+import org.matsim.api.core.v01.population.Person;
 import org.matsim.api.core.v01.population.Route;
 import org.matsim.contrib.dvrp.optimizer.Request;
 import org.matsim.contrib.dvrp.optimizer.VrpOptimizer;
@@ -46,6 +46,7 @@ import org.matsim.core.modal.ModalProviders;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Verify;
+import org.matsim.core.router.TripStructureUtils;
 
 /**
  * @author Michal Maciejewski (michalm)
@@ -70,15 +71,19 @@ public final class DefaultPassengerEngine implements PassengerEngine, PassengerR
 	//accessed in doSimStep() and handleEvent() (potential data races)
 	private final Queue<PassengerRequestRejectedEvent> rejectedRequestsEvents = new ConcurrentLinkedQueue<>();
 
+	//@kaghog adding population object to use
+	private final Scenario scenario;
+
 	DefaultPassengerEngine(String mode, EventsManager eventsManager, MobsimTimer mobsimTimer,
-			PassengerRequestCreator requestCreator, VrpOptimizer optimizer, Network network,
-			PassengerRequestValidator requestValidator) {
+						   PassengerRequestCreator requestCreator, VrpOptimizer optimizer, Network network,
+						   PassengerRequestValidator requestValidator, Scenario scenario) {
 		this.mode = mode;
 		this.mobsimTimer = mobsimTimer;
 		this.requestCreator = requestCreator;
 		this.optimizer = optimizer;
 		this.network = network;
 		this.requestValidator = requestValidator;
+		this.scenario = scenario;
 
 		internalPassengerHandling = new InternalPassengerHandling(mode, eventsManager);
 	}
@@ -119,9 +124,46 @@ public final class DefaultPassengerEngine implements PassengerEngine, PassengerR
 
 		Id<Link> toLinkId = passenger.getDestinationLinkId();
 
+		//@kaghog get the reserved passenger Ids
+		Object reservedPassengerIdsString = null;
+
+		//This works for trip-based and it is used for now because somehow the trip attributes gets deleted when plan is modified
+		reservedPassengerIdsString = (scenario.getPopulation().getPersons().get(passenger.getId())).getAttributes().getAttribute("reservedPassengers");
+
+		//Give option for using trip-based or not
+		/*List<TripStructureUtils.Trip> trips = TripStructureUtils.getTrips(((PlanAgent)passenger).getCurrentPlan().getPlanElements());
+		for(TripStructureUtils.Trip trip: trips){
+			for (Leg leg : trip.getLegsOnly()) {
+				if (leg.getMode().equals("drt")){
+					reservedPassengerIdsString = leg.getAttributes().getAttribute("reservedPassengerIds");
+					break; //we just need that of the drt
+				}
+			}
+		}*/
+
+		//toDo specify the split option and name of attribute and whether the scenario is tripbased or not in the drt config
+		String separator = ",";
+
 		Route route = ((Leg)((PlanAgent)passenger).getCurrentPlanElement()).getRoute();
-		PassengerRequest request = requestCreator.createRequest(internalPassengerHandling.createRequestId(),
-				passenger.getId(), route, getLink(fromLinkId), getLink(toLinkId), now, now);
+		PassengerRequest request = null;
+
+		if (reservedPassengerIdsString != null) {
+			//System.out.println("@kaghog the reservedPaxIds, DefaultPassengerEngine :" + reservedPassengerIdsString);
+			String[] paxIdStrings = reservedPassengerIdsString.toString().split(separator);
+			List<Id<Person>> reservedPassengerIds = new ArrayList<>();
+			for (String paxId: paxIdStrings){
+				reservedPassengerIds.add(Id.create(paxId, Person.class));
+			}
+			request = requestCreator.createRequest(internalPassengerHandling.createRequestId(),
+					passenger.getId(), route, getLink(fromLinkId), getLink(toLinkId), now, now, reservedPassengerIds);
+
+		} else {
+			//System.out.println("@kaghog does not get or have the reservedPassengers, DefaultPassengerEngine");
+			request =  requestCreator.createRequest(internalPassengerHandling.createRequestId(),
+					passenger.getId(), route, getLink(fromLinkId), getLink(toLinkId), now, now);
+		}
+
+
 		validateAndSubmitRequest(passenger, request, now);
 		return true;
 	}
@@ -176,11 +218,15 @@ public final class DefaultPassengerEngine implements PassengerEngine, PassengerR
 			@Inject
 			private MobsimTimer mobsimTimer;
 
+			//@kaghog
+			@Inject
+			private Scenario scenario;
+
 			@Override
 			public DefaultPassengerEngine get() {
 				return new DefaultPassengerEngine(getMode(), eventsManager, mobsimTimer,
 						getModalInstance(PassengerRequestCreator.class), getModalInstance(VrpOptimizer.class),
-						getModalInstance(Network.class), getModalInstance(PassengerRequestValidator.class));
+						getModalInstance(Network.class), getModalInstance(PassengerRequestValidator.class), this.scenario);
 			}
 		};
 	}

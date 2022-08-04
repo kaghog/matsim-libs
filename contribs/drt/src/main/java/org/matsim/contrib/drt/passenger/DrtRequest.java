@@ -23,10 +23,13 @@ package org.matsim.contrib.drt.passenger;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.population.Person;
+import org.matsim.contrib.drt.optimizer.VehicleEntry;
 import org.matsim.contrib.dvrp.optimizer.Request;
 import org.matsim.contrib.dvrp.passenger.PassengerRequest;
 
 import com.google.common.base.MoreObjects;
+
+import java.util.List;
 
 /**
  * @author michalm
@@ -44,6 +47,9 @@ public class DrtRequest implements PassengerRequest {
 	private final Link fromLink;
 	private final Link toLink;
 
+	//@kaghog
+	private final List<Id<Person>> reservedPassengerIds;
+
 	private DrtRequest(Builder builder) {
 		id = builder.id;
 		submissionTime = builder.submissionTime;
@@ -54,6 +60,7 @@ public class DrtRequest implements PassengerRequest {
 		mode = builder.mode;
 		fromLink = builder.fromLink;
 		toLink = builder.toLink;
+		reservedPassengerIds = builder.reservedPassengerIds;
 	}
 
 	public static Builder newBuilder() {
@@ -71,7 +78,13 @@ public class DrtRequest implements PassengerRequest {
 		builder.mode = copy.getMode();
 		builder.fromLink = copy.getFromLink();
 		builder.toLink = copy.getToLink();
+		builder.reservedPassengerIds = copy.getReservedPassengerIds();
 		return builder;
+	}
+
+
+	public List<Id<Person>> getReservedPassengerIds() {
+		return reservedPassengerIds;
 	}
 
 	@Override
@@ -143,6 +156,7 @@ public class DrtRequest implements PassengerRequest {
 		private String mode;
 		private Link fromLink;
 		private Link toLink;
+		private List<Id<Person>> reservedPassengerIds;
 
 		private Builder() {
 		}
@@ -191,6 +205,14 @@ public class DrtRequest implements PassengerRequest {
 			toLink = val;
 			return this;
 		}
+
+
+		public Builder reservedPassengerIds(List<Id<Person>> val) {
+			reservedPassengerIds = val;
+			return this;
+		}
+
+
 
 		public DrtRequest build() {
 			return new DrtRequest(this);

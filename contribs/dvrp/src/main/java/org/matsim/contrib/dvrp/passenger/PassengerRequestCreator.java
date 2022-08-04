@@ -25,6 +25,8 @@ import org.matsim.api.core.v01.population.Person;
 import org.matsim.api.core.v01.population.Route;
 import org.matsim.contrib.dvrp.optimizer.Request;
 
+import java.util.List;
+
 /**
  * @author michalm
  */
@@ -44,4 +46,10 @@ public interface PassengerRequestCreator {
 	 */
 	PassengerRequest createRequest(Id<Request> id, Id<Person> passengerId, Route route, Link fromLink, Link toLink,
 			double departureTime, double submissionTime);
+
+	//@kaghog todo is there a better way without modifying this interface?
+	default PassengerRequest createRequest(Id<Request> id, Id<Person> passengerId, Route route, Link fromLink, Link toLink,
+								   double departureTime, double submissionTime, List<Id<Person>> reservedPassengerIds) {
+		return createRequest(id,passengerId, route, fromLink, toLink, departureTime, submissionTime);
+	}
 }
